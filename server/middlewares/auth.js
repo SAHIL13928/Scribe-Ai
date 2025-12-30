@@ -1,28 +1,48 @@
- // middle ware to check userid and haspremiumplan
-
 import { clerkClient } from "@clerk/express";
 
- export const auth = async (req, res, next) => {
-   try {
-     const { userId, has } = await req.auth;
-     const hasPremiumPlan = await has({plan: 'premium'});
+export const auth = async (req, res, next) => {
+  try {
+    
+    const { userId } = req.auth;
 
-     const user = await clerkClient.users.getUser(userId);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
 
-     if(!hasPremiumPlan && user.privateMetadata.free_usage){
-        req.free_usage = user.privateMetadata.free_usage;
-     }else{
-        await clerkClient.users.updateUserMetadata(userId, 
-            { privateMetadata: { 
-                free_usage: 0 
-            }
-     })
-     req.free_usage = 0;
-     }
+    const user = await clerkClient.users.getUser(userId);
 
-     req.plan = hasPremiumPlan ? 'premium' : 'free';
-     next();
-   } catch (error) {
-    res.json({success: false, message: "Authentication Error", error: error.message});
-   }
-}
+    console.log("AUTH MIDDLEWARE HIT");
+    console.log("PLAN FROM CLERK:", user.publicMetadata?.plan);
+
+    // ✅ Normalize plan
+    const plan = String(user.publicMetadata?.plan || "free").toLowerCase();
+
+    // ✅ SET req.plan BEFORE using/logging it
+    req.plan = plan;
+
+    console.log("PLAN SET ON REQ:", req.plan);
+
+    // ✅ Free usage logic
+    if (plan !== "premium") {
+      req.free_usage = Number(user.privateMetadata?.free_usage ?? 0);
+    } else {
+      if ((user.privateMetadata?.free_usage ?? 0) !== 0) {
+        await clerkClient.users.updateUserMetadata(userId, {
+          privateMetadata: { free_usage: 0 },
+        });
+      }
+      req.free_usage = 0;
+    }
+
+    next();
+  } catch (error) {
+    console.error("Auth middleware error:", error);
+    return res.status(401).json({
+      success: false,
+      message: "Authentication error",
+    });
+  }
+};

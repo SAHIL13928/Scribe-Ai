@@ -1,0 +1,14 @@
+# env files (root OR nested)
+.env
+**/.env
+
+# node
+node_modules/
+
+# build
+dist/
+build/
+.next/
+
+# misc
+.DS_Store
