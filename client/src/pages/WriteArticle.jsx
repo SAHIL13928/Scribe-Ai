@@ -27,7 +27,18 @@ const WriteArticle = () => {
     try {
       setLoading(true)
 
-      const prompt = `Write a detailed article about ${input} with a length of around ${selectedLength.length} words. Make sure the article is well-structured and informative.`
+const prompt = `
+Write a comprehensive, well-structured article on "${input}".
+
+STRICT REQUIREMENTS:
+- The article MUST be at least ${selectedLength.length - 100} words
+- The article MUST NOT be shorter than this
+- Use headings, subheadings, and detailed explanations
+- Do NOT summarize briefly
+- Expand each section properly
+
+Begin the article now.
+`;
 
       const { data } = await axios.post(
   '/api/ai/generate-article',

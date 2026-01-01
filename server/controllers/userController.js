@@ -9,14 +9,16 @@ export const getUserCreations = async (req, res) => {
       SELECT *
       FROM creations
       WHERE user_id = ${userId}
+        AND type IN ('article', 'blog-title')
       ORDER BY created_at DESC
     `;
 
     res.json({ success: true, creations });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 export const saveCreation = async (req, res) => {
   try {
@@ -33,6 +35,25 @@ export const saveCreation = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const getPublishedCreations = async (req, res) => {
+  try {
+    const creations = await sql`
+      SELECT *
+      FROM creations
+      WHERE type = 'image'
+      ORDER BY created_at DESC
+    `;
+
+    res.json({ success: true, creations });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 
 
 

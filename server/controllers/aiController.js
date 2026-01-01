@@ -26,11 +26,6 @@ export const generateArticle = async (req, res) => {
     const content =
       response.candidates?.[0]?.content?.parts?.[0]?.text || "";
      
-      
-    await sql`
-      INSERT INTO creations (user_id, prompt, content, type)
-      VALUES (${userId}, ${prompt}, ${content}, 'article')
-    `;
 
     res.json({ success: true, content });
   } catch (error) {
