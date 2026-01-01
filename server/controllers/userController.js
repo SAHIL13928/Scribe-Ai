@@ -18,6 +18,23 @@ export const getUserCreations = async (req, res) => {
   }
 };
 
+export const saveCreation = async (req, res) => {
+  try {
+    const { userId } = req.auth();
+    const { title, content, type } = req.body;
+
+    await sql`
+      INSERT INTO creations (user_id, prompt, content, type)
+      VALUES (${userId}, ${title}, ${content}, ${type})
+    `;
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 
 
 export const toggleLikeCreation = async (req, res) => {

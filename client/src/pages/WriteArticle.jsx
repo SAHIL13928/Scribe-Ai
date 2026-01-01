@@ -18,6 +18,7 @@ const WriteArticle = () => {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [content, setContent] = useState('')
+  const [publish, setPublish] = useState(true) // New toggle for dashboard
 
   const { getToken } = useAuth()
 
@@ -29,18 +30,37 @@ const WriteArticle = () => {
       const prompt = `Write a detailed article about ${input} with a length of around ${selectedLength.length} words. Make sure the article is well-structured and informative.`
 
       const { data } = await axios.post(
-        '/api/ai/generate-article',
-        { prompt, length: selectedLength.length },
-        {
-          headers: {
-            Authorization: `Bearer ${await getToken()}`
-          }
-        }
-      )
-      console.log("API DATA:", data)
+  '/api/ai/generate-article',
+  {
+    prompt,
+    length: selectedLength.length,
+    publish
+  },
+  {
+    headers: {
+      Authorization: `Bearer ${await getToken()}`
+    }
+  }
+)
+
 
       if (data.success) {
         setContent(data.content)
+
+        // Save to backend if publish toggle is on
+        if (publish) {
+          await axios.post(
+            '/api/user/save-creation',
+            {
+              title: input,
+              content: data.content,
+              type: 'article'
+            },
+            {
+              headers: { Authorization: `Bearer ${await getToken()}` }
+            }
+          )
+        }
       } else {
         toast.error(data.message || 'Something went wrong')
       }
@@ -94,6 +114,20 @@ const WriteArticle = () => {
               ))}
             </div>
 
+            {/* PUBLISH TO DASHBOARD TOGGLE */}
+            <div className="mt-4 flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={publish}
+                onChange={() => setPublish(!publish)}
+                id="publishToggle"
+                className="w-5 h-5 accent-blue-600"
+              />
+              <label htmlFor="publishToggle" className="text-sm text-slate-600">
+                Publish this article on dashboard
+              </label>
+            </div>
+
             <div className="mt-auto pt-6">
               <button
                 disabled={loading}
@@ -126,7 +160,7 @@ const WriteArticle = () => {
             ) : (
               <div className="mt-4 max-h-[340px] overflow-y-auto">
                 <div className='reset-tw'>
-                <ReactMarkdown>{content}</ReactMarkdown>
+                  <ReactMarkdown>{content}</ReactMarkdown>
                 </div>
               </div>
             )}

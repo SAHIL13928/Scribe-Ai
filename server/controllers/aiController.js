@@ -8,33 +8,36 @@ import { cloudinary } from "../configs/cloudinary.js";
 
 
 
-
-
-
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export const generateArticle = async (req, res) => {
   try {
-    const prompt = req.body.prompt;
-    const length = req.body.length;
+    const { userId } = req.auth;   // ✅ same as blog titles
+    const { prompt, length } = req.body;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",       // use a supported Gemini model
-      contents: prompt,                // the text you want to generate from
+      model: "gemini-2.5-flash",
+      contents: prompt,
       config: {
-        maxOutputTokens: length        // approximate output length
+        maxOutputTokens: length
       }
     });
 
-    const text = response.text;
+    const content =
+      response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+     
+      
+    await sql`
+      INSERT INTO creations (user_id, prompt, content, type)
+      VALUES (${userId}, ${prompt}, ${content}, 'article')
+    `;
 
-    res.json({ success: true, content: text });
+    res.json({ success: true, content });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
-
 
   
 
