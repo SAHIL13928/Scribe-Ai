@@ -25,7 +25,7 @@ const Testimonials = () => {
     
 
     const CreateCard = ({ card }) => (
-        <div className="p-4 rounded-lg mx-4 shadow hover:shadow-lg transition-all duration-200 w-72 shrink-0">
+        <div id="testimonials" className="p-4 rounded-lg mx-4 shadow hover:shadow-lg transition-all duration-200 w-72 shrink-0">
             <div className="flex gap-2">
                 <img className="size-11 rounded-full" src={card.image} alt="User Image" />
                 <div className="flex flex-col">
