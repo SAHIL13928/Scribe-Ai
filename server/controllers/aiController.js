@@ -269,11 +269,6 @@ export const removeImageObject = async (req, res) => {
 };
 
 import fs from "fs";
-import { createRequire } from "module";
-
-
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
 
 export const resumeReview = async (req, res) => {
   try {
@@ -302,7 +297,9 @@ export const resumeReview = async (req, res) => {
       });
     }
 
-    // ✅ THIS WILL WORK
+    // Dynamic import - only loads when this function is called
+    const pdfParse = (await import("pdf-parse")).default;
+
     const dataBuffer = fs.readFileSync(resume.path);
     const pdfData = await pdfParse(dataBuffer);
 
