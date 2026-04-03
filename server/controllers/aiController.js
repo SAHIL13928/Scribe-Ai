@@ -5,6 +5,9 @@ import { clerkClient } from "@clerk/express";
 import axios from "axios";
 import FormData from "form-data";
 import { cloudinary } from "../configs/cloudinary.js";
+import fs from "fs";
+import { chunkText, embedAndStoreChunks, retrieveRelevantChunks } from "../utils/rag.js";
+import { extractTextFromPdf } from "../utils/pdfExtract.js";
 
 
 
@@ -12,20 +15,42 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export const generateArticle = async (req, res) => {
   try {
-    const { userId } = req.auth;   // ✅ same as blog titles
-    const { prompt, length } = req.body;
+    const { userId } = req.auth;
+    const { prompt, length, useKnowledgeBase } = req.body;
+
+    let finalPrompt = prompt;
+
+    // RAG: retrieve relevant chunks from user's knowledge base
+    if (useKnowledgeBase) {
+      const relevantChunks = await retrieveRelevantChunks(userId, prompt, 5);
+
+      if (relevantChunks.length > 0) {
+        const context = relevantChunks
+          .map((chunk, i) => `[Source ${i + 1}]:\n${chunk.content}`)
+          .join("\n\n");
+
+        finalPrompt = `You are writing an article using the author's personal reference material as context.
+
+REFERENCE MATERIAL:
+${context}
+
+
+
+ORIGINAL REQUEST:
+${prompt}`;
+      }
+    }
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: prompt,
+      contents: finalPrompt,
       config: {
-        maxOutputTokens: length
-      }
+        maxOutputTokens: length,
+      },
     });
 
     const content =
       response.candidates?.[0]?.content?.parts?.[0]?.text || "";
-     
 
     res.json({ success: true, content });
   } catch (error) {
@@ -268,8 +293,6 @@ export const removeImageObject = async (req, res) => {
   }
 };
 
-import fs from "fs";
-
 export const resumeReview = async (req, res) => {
   try {
     const { userId } = req.auth();
@@ -337,5 +360,88 @@ ${pdfData.text}
       success: false,
       message: error.message,
     });
+  }
+};
+
+// --- RAG: Knowledge Base Endpoints ---
+
+export const uploadDocument = async (req, res) => {
+  try {
+    const { userId } = req.auth;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+
+    const ext = req.file.originalname.split(".").pop().toLowerCase();
+    let text;
+
+    if (ext === "pdf") {
+      text = await extractTextFromPdf(req.file.path);
+    } else {
+      text = fs.readFileSync(req.file.path, "utf-8");
+    }
+
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ success: false, message: "Could not extract text from file" });
+    }
+
+    const chunks = chunkText(text);
+
+    const [doc] = await sql`
+      INSERT INTO documents (user_id, filename, file_type, chunk_count)
+      VALUES (${userId}, ${req.file.originalname}, ${ext}, ${chunks.length})
+      RETURNING id, filename, file_type, chunk_count, created_at
+    `;
+
+    await embedAndStoreChunks(userId, doc.id, chunks);
+
+    // Clean up temp file
+    fs.unlinkSync(req.file.path);
+
+    res.json({ success: true, document: doc });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getDocuments = async (req, res) => {
+  try {
+    const { userId } = req.auth;
+
+    const documents = await sql`
+      SELECT id, filename, file_type, chunk_count, created_at
+      FROM documents
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+    `;
+
+    res.json({ success: true, documents });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteDocument = async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { id } = req.params;
+
+    const [doc] = await sql`
+      SELECT id FROM documents WHERE id = ${id} AND user_id = ${userId}
+    `;
+
+    if (!doc) {
+      return res.status(404).json({ success: false, message: "Document not found" });
+    }
+
+    await sql`DELETE FROM documents WHERE id = ${id} AND user_id = ${userId}`;
+
+    res.json({ success: true, message: "Document deleted" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
